@@ -20,7 +20,7 @@ public class CommandManager implements CommandExecutor {
 
 			switch (args[0].toLowerCase()) {
 				case "test":
-					main.gameManager.StartRandomQuiz();
+					main.gameManager.AutoGame();
 					break;
 			}
 		}

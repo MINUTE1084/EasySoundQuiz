@@ -11,6 +11,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scoreboard.Score;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 public class EventManager implements Listener {
     public static EasySoundQuiz main = EasySoundQuiz.instance;
@@ -24,14 +25,13 @@ public class EventManager implements Listener {
 
         p.setScoreboard(main.gameManager.scoreboard);
         main.gameManager.useImage.put(p, main.gameManager.defaultUseImage);
+
+        if (main.gameManager.bossBar != null) main.gameManager.bossBar.addPlayer(p);
     }
 
     @EventHandler
-    public static void onPlayerQuit(PlayerQuitEvent event) throws IOException {
+    public static void onPlayerQuit(PlayerQuitEvent event) {
         Player p = event.getPlayer();
-
-        String url = EasySoundQuiz.instance.webServer.getWebIp() + p.getUniqueId();
-        p.setResourcePack(url, null, false);
 
         p.setScoreboard(main.gameManager.scoreboard);
         main.gameManager.useImage.remove(p);
@@ -40,14 +40,18 @@ public class EventManager implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public static void onChat(AsyncPlayerChatEvent event){
         if (main.gameManager.currentSound != null) {
-            if (main.gameManager.currentSound.answer.contains(event.getMessage())){
+            if (main.gameManager.currentSound.realAnswer.contains(event.getMessage().replace(" ", "").toLowerCase())){
                 main.gameManager.currentSound.winner = event.getPlayer();
                 main.gameManager.ShowSoundInfo(main.gameManager.currentSound);
 
                 int score = 1;
                 if (main.gameManager.useTimeBasedScore) score *= (5 * (1 - main.gameManager.bossBar.getProgress()));
+                score++;
 
                 Score boardScore = main.gameManager.scoreboard.getObjective("esqScore").getScore(event.getPlayer().getName());
+                boardScore.setScore(score + boardScore.getScore());
+
+                boardScore = main.gameManager.scoreboard.getObjective("esqScore2").getScore(event.getPlayer().getName());
                 boardScore.setScore(score + boardScore.getScore());
 
                 event.setMessage("\2476" + event.getMessage());

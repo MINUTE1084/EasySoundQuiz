@@ -1,6 +1,7 @@
 package minute.easysoundquiz;
 
 import org.bukkit.Bukkit;
+import org.bukkit.boss.KeyedBossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -10,10 +11,7 @@ import org.json.simple.JSONValue;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -54,14 +52,32 @@ public final class EasySoundQuiz extends JavaPlugin {
         Bukkit.getConsoleSender().sendMessage("Made by MINUTE.");
 
         gameManager = new GameManager();
+        Random random = new Random();
         for (Player p : Bukkit.getOnlinePlayers()){
             p.setScoreboard(gameManager.scoreboard);
             gameManager.useImage.put(p, gameManager.defaultUseImage);
+
+            String url = null;
+            try {
+                url = EasySoundQuiz.instance.webServer.getWebIp() + p.getUniqueId();
+                p.setResourcePack(url, null, false);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
     @Override
     public void onDisable() {
+        for (Iterator<KeyedBossBar> it = Bukkit.getServer().getBossBars(); it.hasNext(); ) {
+            KeyedBossBar bb = it.next();
+            bb.removeAll();
+            bb.setVisible(false);
+            Bukkit.getServer().removeBossBar(bb.getKey());
+        }
+
+        for (Player p : Bukkit.getOnlinePlayers()) p.stopAllSounds();
+
         getServer().getScheduler().cancelTasks(plugin);
 
         webServer.stopTask();

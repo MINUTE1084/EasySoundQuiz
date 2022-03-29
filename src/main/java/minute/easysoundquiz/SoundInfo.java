@@ -4,6 +4,7 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class SoundInfo {
     String name;
@@ -11,6 +12,7 @@ public class SoundInfo {
     int id;
     boolean hasImg = false;
     ArrayList<String> answer = new ArrayList<>();
+    ArrayList<String> realAnswer = new ArrayList<>();
     ArrayList<String> answerInfo = new ArrayList<>();
     ArrayList<String> hint = new ArrayList<>();
 
@@ -29,6 +31,14 @@ public class SoundInfo {
                 answerData[i] = answerData[i].substring(1);
 
         answer.addAll(List.of(answerData));
+
+
+        String[] realAnswerData = _answer.replace(" ", "").toLowerCase().split(",");
+        for (int i = 0; i < realAnswerData.length; i++)
+            while (realAnswerData[i].startsWith(" "))
+                realAnswerData[i] = realAnswerData[i].substring(1);
+
+        realAnswer.addAll(List.of(realAnswerData));
 
         String[] answerInfoData = _answerInfo.split(",");
         for (int i = 0; i < answerInfoData.length; i++)
