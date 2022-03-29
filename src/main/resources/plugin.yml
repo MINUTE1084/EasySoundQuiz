@@ -1,0 +1,4 @@
+name: EasySoundQuiz
+version: '0.1'
+main: minute.easysoundquiz.EasySoundQuiz
+api-version: 1.18
