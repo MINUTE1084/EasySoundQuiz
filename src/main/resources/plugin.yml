@@ -2,3 +2,6 @@ name: EasySoundQuiz
 version: '0.1'
 main: minute.easysoundquiz.EasySoundQuiz
 api-version: 1.18
+commands:
+  esq:
+    description: EasySoundQuiz Command (Made by MINUTE.)

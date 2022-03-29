@@ -1,6 +1,7 @@
 package minute.easysoundquiz;
 
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.json.simple.JSONArray;
@@ -32,7 +33,9 @@ public final class EasySoundQuiz extends JavaPlugin {
         plugin = getServer().getPluginManager().getPlugin("EasySoundQuiz");
         webServer = new ResourcePackWebServer();
         soundData = new ArrayList<>();
-        gameManager = new GameManager();
+
+        getCommand("esq").setExecutor(new CommandManager(this));
+        getServer().getPluginManager().registerEvents(new EventManager(), this);
 
         try {
             if (webServer.start()) LoadSound();
@@ -50,7 +53,11 @@ public final class EasySoundQuiz extends JavaPlugin {
         Bukkit.getConsoleSender().sendMessage("\2472[\247aEasySoundQuiz\2472] \247av" + instance.getDescription().getVersion() + " 활성화 되었습니다.");
         Bukkit.getConsoleSender().sendMessage("Made by MINUTE.");
 
-
+        gameManager = new GameManager();
+        for (Player p : Bukkit.getOnlinePlayers()){
+            p.setScoreboard(gameManager.scoreboard);
+            gameManager.useImage.put(p, gameManager.defaultUseImage);
+        }
     }
 
     @Override
