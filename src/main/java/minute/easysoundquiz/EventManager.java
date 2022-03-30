@@ -44,10 +44,7 @@ public class EventManager implements Listener {
                 main.gameManager.currentSound.winner = event.getPlayer();
                 main.gameManager.ShowSoundInfo(main.gameManager.currentSound);
 
-                int score = 1;
-                if (main.gameManager.useTimeBasedScore) score *= (5 * (1 - main.gameManager.bossBar.getProgress()));
-                score++;
-
+                int score = main.gameManager.useTimeBasedScore ? (int)Math.ceil(5 * (1 - main.gameManager.bossBar.getProgress())) : 1;
                 Score boardScore = main.gameManager.scoreboard.getObjective("esqScore").getScore(event.getPlayer().getName());
                 boardScore.setScore(score + boardScore.getScore());
 
