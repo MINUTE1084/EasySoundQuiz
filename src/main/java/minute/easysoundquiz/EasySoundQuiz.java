@@ -11,6 +11,8 @@ import org.json.simple.JSONValue;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -24,46 +26,60 @@ public final class EasySoundQuiz extends JavaPlugin {
 
     public ArrayList<SoundInfo> soundData;
     public int hasError = 0;
+    public float fileSize = 0;
 
+    public long randomint;
     @Override
     public void onEnable() {
         instance = this;
         plugin = getServer().getPluginManager().getPlugin("EasySoundQuiz");
+        ConfigManager.Reset();
         webServer = new ResourcePackWebServer();
         soundData = new ArrayList<>();
+        Random random = new Random();
+        randomint = random.nextLong();
 
         getCommand("esq").setExecutor(new CommandManager(this));
+        getCommand("esq").setTabCompleter(new TabManager(this));
         getServer().getPluginManager().registerEvents(new EventManager(), this);
+        getServer().getPluginManager().registerEvents(new GUIManager(), this);
 
         try {
-            if (webServer.start()) LoadSound();
-            else {
-                Bukkit.getConsoleSender().sendMessage("\2474[\247cEasySoundQuiz\2474] \247c웹 서버를 여는데 실패하였습니다. 플러그인을 비활성화 합니다.");
-                getServer().getPluginManager().disablePlugin(this);
+            if (LoadSound()) {
+
+                if (!webServer.start()) {
+                    Bukkit.getConsoleSender().sendMessage("\2474[\247cEasySoundQuiz\2474] \247c웹 서버를 여는데 실패하였습니다. 플러그인을 비활성화 합니다.");
+                    getServer().getPluginManager().disablePlugin(this);
+                }
+
+                if (hasError > 0)
+                    Bukkit.getConsoleSender().sendMessage("\2474[\247cEasySoundQuiz\2474] \247c" + hasError + "개의 사운드를 로드하는데 문제가 생겼습니다.");
+                Bukkit.getConsoleSender().sendMessage("\2472[\247aEasySoundQuiz\2472] \247av" + instance.getDescription().getVersion() + " 활성화 되었습니다.");
+                Bukkit.getConsoleSender().sendMessage("Made by MINUTE.");
+
+                gameManager = new GameManager();
+
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    p.setScoreboard(gameManager.scoreboard);
+                    gameManager.useImage.put(p, ConfigManager.DEFAULT_USE_IMAGE);
+
+                    String url = null;
+                    try {
+                        url = EasySoundQuiz.instance.webServer.getWebIp() + p.getUniqueId() + randomint;
+                        if (fileSize <= 250) p.setResourcePack(url, null, false);
+                        else {
+                            p.sendMessage("\247c리소스팩 크기가 250MB를 초과합니다! 다음 링크를 클릭해서 파일을 다운로드 후, 수동 적용해주세요.");
+                            Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "tellraw @p {\"text\":\"[링크]\",\"underlined\":true,\"color\":\"gold\",\"clickEvent\":{\"action\":\"open_url\",\"value\":\"" + url + "\"}}");
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             Bukkit.getConsoleSender().sendMessage("\2474[\247cEasySoundQuiz\2474] \247c리소스팩을 생성하지 못했습니다. 플러그인을 비활성화 합니다.");
             getServer().getPluginManager().disablePlugin(this);
-        }
-
-        if (hasError > 0) Bukkit.getConsoleSender().sendMessage("\2474[\247cEasySoundQuiz\2474] \247c" + hasError + "개의 사운드를 로드하는데 문제가 생겼습니다.");
-        Bukkit.getConsoleSender().sendMessage("\2472[\247aEasySoundQuiz\2472] \247av" + instance.getDescription().getVersion() + " 활성화 되었습니다.");
-        Bukkit.getConsoleSender().sendMessage("Made by MINUTE.");
-
-        gameManager = new GameManager();
-        Random random = new Random();
-        for (Player p : Bukkit.getOnlinePlayers()){
-            p.setScoreboard(gameManager.scoreboard);
-            gameManager.useImage.put(p, gameManager.defaultUseImage);
-
-            String url = null;
-            try {
-                url = EasySoundQuiz.instance.webServer.getWebIp() + p.getUniqueId();
-                p.setResourcePack(url, null, false);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         }
     }
 
@@ -82,16 +98,26 @@ public final class EasySoundQuiz extends JavaPlugin {
 
         webServer.stopTask();
 
+        File f = new File(webServer.getFileLocation());
+        if (f.exists()) f.delete();
+
         Bukkit.getConsoleSender().sendMessage("\2472[\247aEasySoundQuiz\2472] \247av" + instance.getDescription().getVersion() + " 비활성화 되었습니다.");
         Bukkit.getConsoleSender().sendMessage("Made by MINUTE.");
     }
 
-    public void LoadSound() throws IOException {
+    public boolean LoadSound() throws IOException {
         File dataFolder = new File(getDataFolder() + "/Sound");
+        if (!dataFolder.exists()) dataFolder.mkdir();
+
         File[] files = dataFolder.listFiles();
+        if (files == null || files.length < 1) {
+            Bukkit.getConsoleSender().sendMessage("\2474[\247cEasySoundQuiz\2474] \247c사운드 데이터가 없습니다. 플러그인을 비활성화 합니다.");
+            getServer().getPluginManager().disablePlugin(this);
+            return false;
+        }
         JSONObject allMusicData = new JSONObject();
 
-        FileOutputStream fos = new FileOutputStream(getDataFolder() + "/EasySoundQuiz.zip");
+        FileOutputStream fos = new FileOutputStream(webServer.getFileLocation());
         ZipOutputStream zipOut = new ZipOutputStream(fos);
 
         File mcmetaFile = new File(getDataFolder() + "/pack.mcmeta");
@@ -99,7 +125,7 @@ public final class EasySoundQuiz extends JavaPlugin {
             String mcmeta = """
                 {
                    "pack": {
-                      "pack_format": 7,
+                      "pack_format": 8,
                       "description": "EasySoundQuiz Datapack"
                    }
                 }
@@ -215,6 +241,13 @@ public final class EasySoundQuiz extends JavaPlugin {
 
         zipOut.close();
         fos.close();
+
+        File result = new File(webServer.getFileLocation());
+        if (result.exists()){
+            fileSize = Files.size(Paths.get(result.getAbsolutePath())) / 1048576f;
+        }
+
+        return true;
     }
 
     private void addSoundFile(File fileToZip, ZipOutputStream zipOut) throws IOException {
@@ -237,5 +270,55 @@ public final class EasySoundQuiz extends JavaPlugin {
         target = target.replace("\\/", "/");
         target = target.replace("\\\\", "\\");
         return target;
+    }
+
+    public void Reset(){
+        for (Iterator<KeyedBossBar> it = Bukkit.getServer().getBossBars(); it.hasNext(); ) {
+            KeyedBossBar bb = it.next();
+            bb.removeAll();
+            bb.setVisible(false);
+            Bukkit.getServer().removeBossBar(bb.getKey());
+        }
+        ConfigManager.Reset();
+        soundData = new ArrayList<>();
+        getServer().getScheduler().cancelTasks(plugin);
+        File f = new File(webServer.getFileLocation());
+        if (f.exists()) f.delete();
+
+        Random random = new Random();
+        randomint = random.nextLong();
+
+        try {
+            LoadSound();
+
+            if (hasError > 0)
+                Bukkit.getConsoleSender().sendMessage("\2474[\247cEasySoundQuiz\2474] \247c" + hasError + "개의 사운드를 로드하는데 문제가 생겼습니다.");
+            Bukkit.getConsoleSender().sendMessage("\2472[\247aEasySoundQuiz\2472] \247av" + instance.getDescription().getVersion() + " 리로드 되었습니다.");
+            Bukkit.getConsoleSender().sendMessage("Made by MINUTE.");
+
+            gameManager.ResetAll();
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                p.stopAllSounds();
+
+                p.setScoreboard(gameManager.scoreboard);
+                gameManager.useImage.put(p, ConfigManager.DEFAULT_USE_IMAGE);
+
+                String url = null;
+                try {
+                    url = webServer.getWebIp() + p.getUniqueId();
+                    if (fileSize <= 250) p.setResourcePack(url, null, false);
+                    else {
+                        p.sendMessage("\247c리소스팩 크기가 250MB를 초과합니다! 다음 링크를 클릭해서 파일을 다운로드 후, 수동 적용해주세요.");
+                        Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "tellraw @p {\"text\":\"[링크]\",\"underlined\":true,\"color\":\"gold\",\"clickEvent\":{\"action\":\"open_url\",\"value\":\"" + url + "\"}}");
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        } catch (Exception e){
+            e.printStackTrace();
+            Bukkit.getConsoleSender().sendMessage("\2474[\247cEasySoundQuiz\2474] \247c리소스팩을 생성하지 못했습니다. 플러그인을 비활성화 합니다.");
+            getServer().getPluginManager().disablePlugin(this);
+        }
     }
 }

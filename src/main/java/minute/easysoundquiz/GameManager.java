@@ -27,25 +27,41 @@ public class GameManager {
 
     public KeyedBossBar bossBar = null;
 
-    public int timeEnd = 1200;
-    public int timeHint = 200;
-
     private BukkitTask quizTask;
     public HashMap<Player, Boolean> useImage;
-    public boolean defaultUseImage = true;
-    public boolean useTimeBasedScore = true;
+
+
+
+    public boolean isAutoGame(){
+        return autoGameTask != null && !autoGameTask.isCancelled();
+    }
+
+    public boolean isQuizMode(){
+        return quizTask != null && !quizTask.isCancelled();
+    }
 
     public GameManager() {
         useImage = new HashMap<>();
 
+        ResetAll();
+    }
+
+    public void ResetAll(){
+        bossBar = null;
+        ForceEnd();
+        ForceEnd();
+        ResetScore();
+        ShuffleIndex();
+    }
+
+    public void ResetScore() {
         scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
+
         Objective obj = scoreboard.registerNewObjective("esqScore", "dummy", "점수");
         obj.setDisplaySlot(DisplaySlot.BELOW_NAME);
 
         Objective obj2 = scoreboard.registerNewObjective("esqScore2", "dummy", "점수");
         obj2.setDisplaySlot(DisplaySlot.SIDEBAR);
-
-        ShuffleIndex();
     }
 
     private void ShuffleIndex(){
@@ -67,18 +83,24 @@ public class GameManager {
     BukkitTask autoGameTask;
     public void AutoGame(){
         currentGame = maxGame;
-        StartRandomQuiz();
 
         autoGameTask = new BukkitRunnable() {
             int count = 0;
             @Override
             public void run() {
-                if (bossBar != null) bossBar.setProgress(Math.min(count++ / (float)400, 1));
+                if (bossBar != null) bossBar.setProgress(Math.min(count++ / (float)ConfigManager.QUIZ_PREPARE_TIME, 1));
                 if (currentGame == 0) EndAutoGame();
                 else if (currentSound != null) count = 0;
-                else if (count == 400 && currentGame > 0) StartRandomQuiz();
+                else if (count ==  ConfigManager.QUIZ_PREPARE_TIME && currentGame > 0) StartQuiz(null);
             }
         }.runTaskTimer(EasySoundQuiz.plugin, 0, 1);
+
+        StartQuiz(null);
+    }
+
+    public void ForceEnd() {
+        if (bossBar != null) bossBar.setVisible(false);
+        if (autoGameTask != null && !autoGameTask.isCancelled()) autoGameTask.cancel();
     }
 
     public void EndAutoGame() {
@@ -87,43 +109,55 @@ public class GameManager {
             @Override
             public void run() {
                 if (bossBar != null) bossBar.setVisible(false);
-
                 if (autoGameTask != null && !autoGameTask.isCancelled()) autoGameTask.cancel();
-                HashMap<Integer, ArrayList<String>> result = new HashMap<>();
-                for (String entry : scoreboard.getEntries()) {
-                    int score = scoreboard.getObjective("esqScore").getScore(entry).getScore();
-                    if (!result.containsKey(score)) result.put(score, new ArrayList<>());
-                    result.get(score).add(entry);
-                }
-
-                List<Map.Entry<Integer, ArrayList<String>>> data = new ArrayList<>(result.entrySet());
-                Collections.sort(data, (o1, o2) -> o2.getKey().compareTo(o1.getKey()));
-
-                Bukkit.broadcastMessage("\2472======================[ \247a결과 \2472]======================");
-                String[] place = new String[]{"\247b1위 : ", "\247e2위 : ", "\24773위 : "};
-                for (int i = 0; i < 3; i++) {
-                    if (i < data.size()) {
-                        for (int j = 0; j < data.get(i).getValue().size(); j++) {
-                            place[i] += (data.get(i).getValue().get(j));
-                            if (j < (data.get(i).getValue().size() - 1)) place[i] += ", ";
-                        }
-                        Bukkit.broadcastMessage(place[i]);
-                    }
-                }
-                Bukkit.broadcastMessage("\2472===================================================");
-
-                for (Player p : Bukkit.getOnlinePlayers()) {
-                    if (0 < data.size() && data.get(0).getValue().contains(p.getName())) p.sendTitle("\247b1위!", "\247b축하합니다!", 10, 60, 10);
-                    else if (1 < data.size() && data.get(1).getValue().contains(p.getName())) p.sendTitle("\247e2위!", "\247e축하합니다!", 10, 60, 10);
-                    else if (2 < data.size() && data.get(2).getValue().contains(p.getName())) p.sendTitle("\24773위!", "\2477축하합니다!", 10, 60, 10);
-                    else p.sendTitle("\247c게임 종료!", "\247c모든 문제를 풀었습니다.", 10, 60, 10);
-                }
+                ShowPlace(true);
             }
-        }.runTaskLater(EasySoundQuiz.plugin, 400);
+        }.runTaskLater(EasySoundQuiz.plugin, ConfigManager.QUIZ_PREPARE_TIME);
+    }
+
+    public void ShowPlace(boolean isGameEnd){
+        HashMap<Integer, ArrayList<String>> result = new HashMap<>();
+        for (String entry : scoreboard.getEntries()) {
+            int score = scoreboard.getObjective("esqScore").getScore(entry).getScore();
+            if (!result.containsKey(score)) result.put(score, new ArrayList<>());
+            result.get(score).add(entry);
+        }
+
+        List<Map.Entry<Integer, ArrayList<String>>> data = new ArrayList<>(result.entrySet());
+        Collections.sort(data, (o1, o2) -> o2.getKey().compareTo(o1.getKey()));
+
+        if (isGameEnd) Bukkit.broadcastMessage("\2472======================[ \247a결과 \2472]======================");
+        else Bukkit.broadcastMessage("\2472======================[ \247a점수 \2472]======================");
+        String[] place = new String[]{"\247b1위 : ", "\247e2위 : ", "\24773위 : "};
+        for (int i = 0; i < 3; i++) {
+            if (i < data.size()) {
+                for (int j = 0; j < data.get(i).getValue().size(); j++) {
+                    place[i] += (data.get(i).getValue().get(j));
+                    if (j < (data.get(i).getValue().size() - 1)) place[i] += ", ";
+                }
+                Bukkit.broadcastMessage(place[i]);
+            }
+        }
+        Bukkit.broadcastMessage("\2472===================================================");
+
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (0 < data.size() && data.get(0).getValue().contains(p.getName())) {
+                p.sendTitle("\247b1위!", !isGameEnd ? "" : "\247b축하합니다!", 10, 60, 10);
+                if (ConfigManager.USE_FIREWORK_ON_RESULT) summonFirework(p);
+            } else if (1 < data.size() && data.get(1).getValue().contains(p.getName())) {
+                p.sendTitle("\247e2위!", !isGameEnd ? "" : "\247e축하합니다!", 10, 60, 10);
+                if (ConfigManager.USE_FIREWORK_ON_RESULT) summonFirework(p);
+            } else if (2 < data.size() && data.get(2).getValue().contains(p.getName())) {
+                p.sendTitle("\24773위!", !isGameEnd ? "" : "\2477축하합니다!", 10, 60, 10);
+                if (ConfigManager.USE_FIREWORK_ON_RESULT) summonFirework(p);
+            } else if (isGameEnd) {
+                p.sendTitle("\247c게임 종료!", "\247c게임이 종료되었습니다.", 10, 60, 10);
+            }
+        }
     }
     
     int indexR = 0;
-    public void StartRandomQuiz() {
+    public void StartQuiz(SoundInfo info) {
         if (indexR >= shuffledQuizIndex.size()) {
             ShuffleIndex();
             indexR = 0;
@@ -134,37 +168,39 @@ public class GameManager {
 
         new BukkitRunnable(){
             int count = 3;
+            String subtitle = autoGameTask != null && !autoGameTask.isCancelled() ? "Quiz " + (maxGame - currentGame + 1) + " / " + maxGame : "Special Quiz";
             @Override
             public void run() {
                 switch (count){
                     case 3 -> {
                         for (Player p : Bukkit.getOnlinePlayers()) {
-                            p.sendTitle("\247e3", "\247eQuiz " + (maxGame - currentGame + 1) + " / " + maxGame, 10, 20, 10);
+                            p.sendTitle("\247e3", "\247e" + subtitle, 10, 20, 10);
                             p.playSound(p, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.5f, 2f);
                         }
                     }
                     case 2 ->{
                         for (Player p : Bukkit.getOnlinePlayers()) {
-                            p.sendTitle("\24762", "\2476Quiz " + (maxGame - currentGame + 1) + " / " + maxGame, 0, 20, 10);
+                            p.sendTitle("\24762", "\2476" + subtitle, 0, 20, 10);
                             p.playSound(p, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.5f, 2f);
                         }
                     }
                     case 1 ->{
                         for (Player p : Bukkit.getOnlinePlayers()) {
                             p.stopAllSounds();
-                            p.sendTitle("\247c1", "\247cQuiz " + (maxGame - currentGame + 1) + " / " + maxGame, 0, 20, 10);
+                            p.sendTitle("\247c1", "\247c"  + subtitle, 0, 20, 10);
                             p.playSound(p, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.5f, 2f);
                         }
                     }
                     case 0 ->{
                         if (bossBar != null) bossBar.setVisible(true);
 
-                        currentSound = EasySoundQuiz.instance.soundData.get(shuffledQuizIndex.get(indexR++));
+                        if (info == null) currentSound = EasySoundQuiz.instance.soundData.get(shuffledQuizIndex.get(indexR++));
+                        else currentSound = info;
 
                         for (Player p : Bukkit.getOnlinePlayers()){
                             p.stopAllSounds();
-                            p.sendTitle("\247aPlay!", "\247aQuiz " + (maxGame - currentGame + 1) + " / " + maxGame, 0, 20, 10);
-                            p.playSound(p.getLocation(), "esq" + currentSound.id + ".sound", SoundCategory.MASTER, 0.5f, 1f);
+                            p.sendTitle("\247aPlay!", "\247a" + subtitle, 0, 20, 10);
+                            p.playSound(p.getLocation(), "esq" + currentSound.id + ".sound", SoundCategory.MASTER, ConfigManager.SOUND_VOLUME, 1f);
                         }
 
                         if (bossBar == null) {
@@ -179,9 +215,9 @@ public class GameManager {
                             int currentTime = 0;
                             @Override
                             public void run() {
-                                if (currentTime == timeEnd) TimeOver();
-                                if ((currentTime % timeHint) == (timeHint - 1)) ShowHint(currentSound);
-                                bossBar.setProgress(Math.min(currentTime++ / (float)timeEnd, 1));
+                                if (currentTime == ConfigManager.QUIZ_TIME_END) TimeOver();
+                                if ((currentTime % ConfigManager.QUIZ_TIME_HINT) == (ConfigManager.QUIZ_TIME_HINT - 1) && ConfigManager.USE_HINT) ShowHint(currentSound);
+                                bossBar.setProgress(Math.min(currentTime++ / (float)ConfigManager.QUIZ_TIME_END, 1));
 
                                 String bossbarTitle = "\247e정답 키워드 : \247a";
 
@@ -190,7 +226,7 @@ public class GameManager {
                                     if (i < (currentSound.answerInfo.size() - 1)) bossbarTitle += ", ";
                                 }
 
-                                if (useTimeBasedScore) bossbarTitle += " \2477(" + (int)Math.ceil(5 * (1 - bossBar.getProgress())) + "점)";
+                                if (ConfigManager.USE_TIME_BASED_SCORE) bossbarTitle += " \2477(" + (int)Math.ceil(ConfigManager.TIME_BASED_SCORE * (1 - bossBar.getProgress())) + "점)";
                                 bossBar.setTitle(bossbarTitle);
                             }
                         }.runTaskTimer(EasySoundQuiz.plugin, 0, 1);
@@ -205,6 +241,23 @@ public class GameManager {
         ShowSoundInfo(currentSound);
     }
 
+    public void PlaySound(SoundInfo info){
+        for (Player p : Bukkit.getOnlinePlayers()){
+            p.stopAllSounds();
+            p.playSound(p.getLocation(), "esq" + info.id + ".sound", SoundCategory.MASTER, 0.5f, 1f);
+            if (info.hasImg && useImage.get(p)) {
+                Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "title " + p.getName() + " subtitle [\"\",{\"text\":\"" + info.artist + "\",\"color\":\"yellow\"},{\"text\":\" - \",\"color\":\"gold\"},{\"text\":\"" + info.name + "\",\"color\":\"yellow\"}]");
+                Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "title " + p.getName() + " title {\"text\":\"\\uE" + String.format("%03d", info.id) + "\",\"font\":\"esq\"}");
+                Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "title " + p.getName() + " times 10 60 10");
+            } else p.sendTitle("\2476" + info.name, "\247e" + info.artist, 10, 60, 10);
+
+            Bukkit.broadcastMessage("\2476======================[ \247e정보 \2476]======================");
+            Bukkit.broadcastMessage("\247e제목 : \247a" + info.name);
+            Bukkit.broadcastMessage("\247e아티스트 : \247a" + info.artist);
+            Bukkit.broadcastMessage("\2476===================================================");
+        }
+    }
+
     public void ShowHint(SoundInfo info) {
         String hint = "\247e힌트 : \247a" + info.getNextHint();
 
@@ -214,7 +267,7 @@ public class GameManager {
 
 
     public void ShowSoundInfo(SoundInfo info) {
-        final int score = useTimeBasedScore ? (int)Math.ceil(5 * (1 - bossBar.getProgress())) : 1;
+        final int score = ConfigManager.USE_TIME_BASED_SCORE ? (int)Math.ceil(ConfigManager.TIME_BASED_SCORE * (1 - bossBar.getProgress())) : 1;
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -246,7 +299,7 @@ public class GameManager {
                     Bukkit.broadcastMessage("\2476정답자 : \247e" + info.winner.getName() + " \2477(" + score + "점)");
                     bossBar.setColor(BarColor.YELLOW);
                     bossBar.setTitle("\2476" + info.winner.getName() + " \247e정답!");
-                    summonFirework(info.winner);
+                    if (ConfigManager.USE_FIREWORK) summonFirework(info.winner);
                 }
 
                 Bukkit.broadcastMessage("\2476===================================================");
@@ -255,7 +308,7 @@ public class GameManager {
                 currentSound.Reset();
                 currentSound = null;
 
-                currentGame--;
+                if (autoGameTask != null && !autoGameTask.isCancelled()) currentGame--;
             }
         }.runTaskLater(EasySoundQuiz.plugin, 2);
 

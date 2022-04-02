@@ -49,8 +49,15 @@ public class ResourcePackWebServer {
                                     httpServerRequest.response().setStatusCode(401);
                                     httpServerRequest.response().end();
                                 } else {
+                                    boolean uuidCheck = false;
                                     String uuid = parts[1];
-                                    if (checkPlayerExist(uuid)) {
+                                    String secureCode = String.valueOf(EasySoundQuiz.instance.randomint);
+
+                                    for (Player player : Bukkit.getOnlinePlayers()){
+                                        if (uuid.equals(player.getUniqueId() + secureCode)) uuidCheck = true;
+                                    }
+
+                                    if (uuidCheck) {
                                         httpServerRequest.response().sendFile(getFileLocation());
                                     } else {
                                         Bukkit.getConsoleSender().sendMessage("UUID Error (UUID : " + uuid + ")");
@@ -79,7 +86,7 @@ public class ResourcePackWebServer {
     }
 
     public final String getFileLocation() {
-        return EasySoundQuiz.instance.getDataFolder().getPath() + File.separator + "EasySoundQuiz.zip";
+        return EasySoundQuiz.instance.getDataFolder().getPath() + File.separator + EasySoundQuiz.instance.randomint + ".zip";
     }
 
     public final void stopTask() {
@@ -87,9 +94,7 @@ public class ResourcePackWebServer {
     }
 
     public boolean checkPlayerExist(String uuid){
-        for (Player player : Bukkit.getOnlinePlayers()){
-            if (Objects.equals(player.getUniqueId().toString(), uuid)) return true;
-        }
+
         return false;
     }
 }
