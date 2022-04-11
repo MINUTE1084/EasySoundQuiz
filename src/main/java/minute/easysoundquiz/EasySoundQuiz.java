@@ -8,9 +8,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
+import org.mozilla.universalchardet.UniversalDetector;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.*;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
@@ -163,7 +165,14 @@ public final class EasySoundQuiz extends JavaPlugin {
                     File[] files2 = file.listFiles();
                     for (File file2 : files2) {
                         if (file2.toString().toLowerCase().contains("data.yml")) {
-                            Map<String, Object> abilityData = new Yaml().load(new FileReader(file2));
+                            String charsetStr = findFileEncoding(file2);
+                            if (charsetStr == null) {
+                                Bukkit.getConsoleSender().sendMessage("\2474[\247cEasySoundQuiz\2474] \247c파일을 로드하는데 문제가 생겼습니다. (위치 : " + file2.toString() + ")");
+                                continue;
+                            }
+                            Charset charset = Charset.forName(charsetStr);
+                            Map<String, Object> abilityData = new Yaml().load(new FileReader(file2, charset));
+
                             soundName = abilityData.get("제목").toString();
                             soundArtist = abilityData.get("아티스트").toString();
                             answer = abilityData.get("정답").toString();
@@ -320,5 +329,26 @@ public final class EasySoundQuiz extends JavaPlugin {
             Bukkit.getConsoleSender().sendMessage("\2474[\247cEasySoundQuiz\2474] \247c리소스팩을 생성하지 못했습니다. 플러그인을 비활성화 합니다.");
             getServer().getPluginManager().disablePlugin(this);
         }
+    }
+
+    public static String findFileEncoding(File file) throws IOException {
+        byte[] buf = new byte[4096];
+        java.io.FileInputStream fis = new java.io.FileInputStream(file);
+
+        // (1)
+        UniversalDetector detector = new UniversalDetector(null);
+
+        // (2)
+        int nread;
+        while ((nread = fis.read(buf)) > 0 && !detector.isDone()) {
+            detector.handleData(buf, 0, nread);
+        }
+        // (3)
+        detector.dataEnd();
+
+        // (4)
+        String encoding = detector.getDetectedCharset();
+        detector.reset();
+        return encoding;
     }
 }
